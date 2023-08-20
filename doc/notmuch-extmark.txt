@@ -1,0 +1,10 @@
+==============================================================================
+
+                                                             *notmuch-extmark*
+
+This plugin overlays certain patterns in a buffer with results from `notmuch`
+searches.
+
+
+
+vim:tw=78:ts=8:ft=help:norl:
