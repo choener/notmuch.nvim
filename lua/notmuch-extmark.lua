@@ -32,7 +32,10 @@ function M.openNeomutt()
   local line = vim.api.nvim_get_current_line()
   local from, how, idstr, to = line:match(M._searchString)
   if idstr then
-    io.popen('notmuch-mutt search -o ~/.cache/notmuch/mutt/extmark/ id:\''..idstr..'\'')
+    local h = io.popen('notmuch-mutt search -o ~/.cache/notmuch/mutt/extmark/ id:\''..idstr..'\'')
+    if h then
+      h:close()
+    end
     vim.api.nvim_command('terminal neomutt -f ~/.cache/notmuch/mutt/extmark/')
   end
   -- 1. Be over a Message-ID line
