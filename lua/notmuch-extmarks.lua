@@ -1,6 +1,12 @@
 -- TODO disable overlay when on the message line
 -- TODO next up should, of course, be a telescope to display all known email mentions
 
+local pickers = require'telescope.pickers'
+local finders = require'telescope.finders'
+local conf = require'telescope.config'.values
+local actions = require'telescope.actions'
+local action_state = require'telescope.actions.state'
+
 local M = {}
 
 M._keys = {}
@@ -24,6 +30,28 @@ function M.setup(config)
   vim.api.nvim_set_hl(0, 'EmailDate'   , { fg = '#ffffff', bg = '#000077' })
   vim.api.nvim_set_hl(0, 'EmailSubject', { fg = '#ffffff', bg = '#0000FF' })
   vim.api.nvim_set_hl(0, 'EmailAuthors', { fg = '#ffffff', bg = '#000077' })
+end
+
+-- Lists all mail lines in the telescope picker
+
+function M.pickMail(opts)
+  opts = opts or {}
+  local selection = nil
+  pickers.new(opts, {
+    prompt_title = "Linked Emails",
+    finder = finders.new_table {
+        results = { "red", "green", "blue" }
+    },
+    sorter = conf.generic_sorter(opts),
+    attach_mappings = function(prompt_bufnr, map)
+      actions.select_default:replace(function()
+        actions.close(prompt_bufnr)
+        selection = action_state.get_selected_entry()
+      end)
+      return true
+    end
+  }):find()
+  print("hello",selection)
 end
 
 function M.queryById(_, v, idstr)
