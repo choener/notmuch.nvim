@@ -66,18 +66,23 @@ function M.queryById(_, v, idstr)
   return result
 end
 
+-- | Will open neomutt with the query.
+
 function M.openNeomutt()
   local line = vim.api.nvim_get_current_line()
   for k,v in pairs(M._keys) do
     local idstr = line:match(k..v.search)
     if idstr then
-      local h = io.popen('notmuch-mutt search -o ~/.cache/notmuch/mutt/extmark/ thread:{id:\''..idstr..'\'}')
-      if h then
-        h:close()
-      end
-      vim.api.nvim_command('terminal neomutt -f ~/.cache/notmuch/mutt/extmark/')
-      break
+      vim.api.nvim_command('terminal neomutt -f \'notmuch://?query=thread:{id:'..idstr..'}\'')
     end
+    --if idstr then
+    --  local h = io.popen('notmuch-mutt search -o ~/.cache/notmuch/mutt/extmark/ thread:{id:\''..idstr..'\'}')
+    --  if h then
+    --    h:close()
+    --  end
+    --  vim.api.nvim_command('terminal neomutt -f ~/.cache/notmuch/mutt/extmark/')
+    --  break
+    --end
   end
 end
 
