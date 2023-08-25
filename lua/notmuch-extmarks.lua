@@ -6,6 +6,7 @@ local finders = require'telescope.finders'
 local conf = require'telescope.config'.values
 local actions = require'telescope.actions'
 local action_state = require'telescope.actions.state'
+local entry_display = require'telescope.pickers.entry_display'
 
 local M = {}
 
@@ -37,21 +38,53 @@ end
 function M.pickMail(opts)
   opts = opts or {}
   local selection = nil
+  local results = {}
+  for _, idl in pairs(M._findMessageIDs()) do
+    table.insert(results, idl)
+  end
+  local displayer = entry_display.create {
+    separator = ' ',
+    items = {
+      { width = 10 },
+      { width = 99 },
+      { width = 59 },
+    },
+  }
+  local make_display = function(entry)
+    local e = entry.value
+    local m = e.msg[1]
+    return displayer {
+      { m.date_relative, 'EmailDate' },
+      { m.subject, 'EmailSubject' },
+      { m.authors, 'EmailAuthors' },
+    }
+  end
   pickers.new(opts, {
     prompt_title = "Linked Emails",
     finder = finders.new_table {
-        results = { "red", "green", "blue" }
+        results = results,
+        entry_maker = function(entry)
+          local ln = entry.msg[1].date_relative..'  '..entry.msg[1].subject..'  '..entry.msg[1].authors
+          return {
+            value = entry,
+            ordinal = ln,
+            display = make_display,
+            lnum = entry.line,
+          }
+        end,
     },
     sorter = conf.generic_sorter(opts),
     attach_mappings = function(prompt_bufnr, map)
       actions.select_default:replace(function()
         actions.close(prompt_bufnr)
         selection = action_state.get_selected_entry()
+        M._openNeomutt(selection.value.line)
       end)
       return true
     end
   }):find()
-  print("hello",selection)
+  --M._openNeomutt(selection)
+  --print("hello",selection)
 end
 
 function M.queryById(_, v, idstr)
@@ -66,66 +99,64 @@ function M.queryById(_, v, idstr)
   return result
 end
 
--- | Will open neomutt with the query.
+-- | The actual "open neomutt" function.
 
-function M.openNeomutt()
-  local line = vim.api.nvim_get_current_line()
+function M._openNeomutt(line)
   for k,v in pairs(M._keys) do
     local idstr = line:match(k..v.search)
     if idstr then
       vim.api.nvim_command('terminal neomutt -f \'notmuch://?query=thread:{id:'..idstr..'}\'')
     end
-    --if idstr then
-    --  local h = io.popen('notmuch-mutt search -o ~/.cache/notmuch/mutt/extmark/ thread:{id:\''..idstr..'\'}')
-    --  if h then
-    --    h:close()
-    --  end
-    --  vim.api.nvim_command('terminal neomutt -f ~/.cache/notmuch/mutt/extmark/')
-    --  break
-    --end
   end
 end
 
-function M.replaceMessageId()
-  local lines = vim.api.nvim_buf_get_lines(0,0,-1, false)
-  for row, line in pairs(lines)
-    do
-      -- Uses lua patterns, careful these are not regexes
-      -- https://neovim.io/doc/user/luaref.html#lua-pattern
-      -- https://www.lua.org/pil/20.2.html
-      local key, val = nil, nil
-      local from, idstr, to = nil, nil, nil
-      for k,v in pairs(M._keys) do
-        from, idstr, to = line:match('()'..k..v.search..'()')
-        if idstr then
-          key = k
-          val = v
-          break
-        end
-      end
+-- | Will open neomutt with the query.
+
+function M.openNeomutt()
+  local line = vim.api.nvim_get_current_line()
+  M._openNeomutt(line)
+end
+
+-- This function provides a list of all lines with message IDs.
+
+function M._findMessageIDs()
+  local idlines = {}
+  local lines = vim.api.nvim_buf_get_lines(0,0,-1,false)
+  for row, line in pairs(lines) do
+    for key, val in pairs (M._keys) do
+      local from, idstr, to = line:match('()'..key..val.search..'()')
       local msg = nil
       if idstr then
         msg = M.queryById(key, val, idstr)
       end
       if (msg and msg[1]) then
-        local len = math.max(0, to-from+1)
-        local fillStr = string.format('%'..len..'s', '')
-        local opts = {
-          virt_text = { { msg[1].date_relative..'  ', 'EmailDate' },
-                        { msg[1].subject, 'EmailSubject' },
-                        { '  '..msg[1].authors, 'EmailAuthors' },
-                        { fillStr, 'String' },
-                      },
-          virt_text_pos = 'overlay',
-          virt_text_hide = true,  -- original text will show up when, say, using visual mode
-        }
-        -- https://jdhao.github.io/2021/09/09/nvim_use_virtual_text/
-        --
-        -- TODO store extmark, to allow to toggle them on or off! (Or just delete all of them in the
-        -- namespace and recreate if necessary.
-        vim.api.nvim_buf_set_extmark(0, M.ns, row-1, from-1, opts)
+        table.insert(idlines, { row=row, line=line, from=from, idstr=idstr, to=to, msg=msg })
       end
     end
+  end
+  return idlines
+end
+
+function M.replaceMessageId()
+  local idlines = M._findMessageIDs()
+  for _, idl in pairs (idlines) do
+    local len = math.max(0, idl.to-idl.from+1)
+    local fillStr = string.format('%'..len..'s', '')
+    local opts = {
+      virt_text = { { idl.msg[1].date_relative..'  ', 'EmailDate' },
+                    { idl.msg[1].subject, 'EmailSubject' },
+                    { '  '..idl.msg[1].authors, 'EmailAuthors' },
+                    { fillStr, 'String' },
+                  },
+      virt_text_pos = 'overlay',
+      virt_text_hide = true,  -- original text will show up when, say, using visual mode
+    }
+    -- https://jdhao.github.io/2021/09/09/nvim_use_virtual_text/
+    --
+    -- TODO store extmark, to allow to toggle them on or off! (Or just delete all of them in the
+    -- namespace and recreate if necessary.
+    vim.api.nvim_buf_set_extmark(0, M.ns, idl.row-1, idl.from-1, opts)
+  end
 end
 
 return M
