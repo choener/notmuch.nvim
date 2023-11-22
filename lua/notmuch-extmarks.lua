@@ -28,9 +28,10 @@ function M.setup(config)
   end
   M.ns = vim.api.nvim_create_namespace('notmuch')
   -- TODO toggle state
-  vim.api.nvim_set_hl(0, 'EmailDate'   , { fg = '#ffffff', bg = '#000077' })
-  vim.api.nvim_set_hl(0, 'EmailSubject', { fg = '#ffffff', bg = '#0000FF' })
-  vim.api.nvim_set_hl(0, 'EmailAuthors', { fg = '#ffffff', bg = '#000077' })
+  vim.api.nvim_set_hl(M.ns, 'EmailDate'   , { fg = '#ffffff', bg = '#000077' })
+  vim.api.nvim_set_hl(M.ns, 'EmailSubject', { fg = '#ffffff', bg = '#0000FF' })
+  vim.api.nvim_set_hl(M.ns, 'EmailAuthors', { fg = '#ffffff', bg = '#000077' })
+  vim.api.nvim_set_hl_ns(M.ns)
 end
 
 -- Lists all mail lines in the telescope picker
