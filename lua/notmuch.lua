@@ -32,6 +32,20 @@ function M.setup(config)
   vim.api.nvim_set_hl(M.ns, 'EmailSubject', { fg = '#ffffff', bg = '#0000FF' })
   vim.api.nvim_set_hl(M.ns, 'EmailAuthors', { fg = '#ffffff', bg = '#000077' })
   vim.api.nvim_set_hl_ns(M.ns)
+
+  local auid = vim.api.nvim_create_augroup('NotmuchGroup', { clear = true, })
+  vim.api.nvim_create_autocmd({"InsertLeave", },
+    { pattern = "",
+      callback = function() M.replaceMessageId() end,
+      desc = "notmuch.nvim, InsertLeave",
+      group = auid,
+    })
+  vim.api.nvim_create_autocmd({"InsertEnter", },
+    { pattern = "",
+      callback = function() M.clear() end,
+      desc = "notmuch.nvim, InsertLeave",
+      group = auid,
+    })
 end
 
 -- Lists all mail lines in the telescope picker
@@ -138,6 +152,8 @@ function M._findMessageIDs()
   return idlines
 end
 
+-- | Replaces message id's with the actual Email subject
+
 function M.replaceMessageId()
   local idlines = M._findMessageIDs()
   for _, idl in pairs (idlines) do
@@ -158,6 +174,10 @@ function M.replaceMessageId()
     -- namespace and recreate if necessary.
     vim.api.nvim_buf_set_extmark(0, M.ns, idl.row-1, idl.from-1, opts)
   end
+end
+
+function M.clear()
+  vim.api.nvim_buf_clear_namespace(0, M.ns, 0, -1)
 end
 
 return M
