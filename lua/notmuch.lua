@@ -12,6 +12,15 @@ local M = {}
 
 M._keys = {}
 
+-- Setup function. Accepts a configuration. Here for notmuch.
+-- { keys = { {'NOTMUCH', },
+--    { 'Message%-ID:', {
+--      search = '%s*%<([^%>]+)%>',
+--      query = 'id:\'%s\'',
+--      notmuch = 'id:\'%s\'',
+--      }, },
+--    },}
+
 function M.setup(config)
   -- setup each key to be a search pattern
   for _, entry in ipairs(config.keys) do
@@ -27,19 +36,21 @@ function M.setup(config)
     M._keys[key] = opts
   end
   M.ns = vim.api.nvim_create_namespace('notmuch')
-  -- TODO toggle state
+  -- Some defaults graphics.
   vim.api.nvim_set_hl(M.ns, 'EmailDate'   , { fg = '#ffffff', bg = '#000077' })
   vim.api.nvim_set_hl(M.ns, 'EmailSubject', { fg = '#ffffff', bg = '#0000FF' })
   vim.api.nvim_set_hl(M.ns, 'EmailAuthors', { fg = '#ffffff', bg = '#000077' })
   vim.api.nvim_set_hl_ns(M.ns)
 
   local auid = vim.api.nvim_create_augroup('NotmuchGroup', { clear = true, })
+  -- On exiting insert mode, activate all overlays.
   vim.api.nvim_create_autocmd({"InsertLeave", },
     { pattern = "",
       callback = function() M.replaceMessageId() end,
       desc = "notmuch.nvim, InsertLeave",
       group = auid,
     })
+  -- On entering insert mode, clear() all overlays.
   vim.api.nvim_create_autocmd({"InsertEnter", },
     { pattern = "",
       callback = function() M.clear() end,
@@ -48,7 +59,7 @@ function M.setup(config)
     })
 end
 
--- Lists all mail lines in the telescope picker
+-- Lists all mail lines in the telescope picker.
 
 function M.pickMail(opts)
   opts = opts or {}
@@ -102,6 +113,8 @@ function M.pickMail(opts)
   --print("hello",selection)
 end
 
+-- Runs a notmuch query.
+
 function M.queryById(_, v, idstr)
   local command = 'notmuch search --format=json --output=summary --limit=1 '..string.format(v.query, idstr)
   local handle = io.popen(command)
@@ -114,7 +127,7 @@ function M.queryById(_, v, idstr)
   return result
 end
 
--- | The actual "open neomutt" function.
+-- | The actual "open neomutt" function. Will open neomutt to the notmuch query and the emails satisfying the query.
 
 function M._openNeomutt(line)
   for k,v in pairs(M._keys) do
@@ -152,15 +165,18 @@ function M._findMessageIDs()
   return idlines
 end
 
--- | Replaces message id's with the actual Email subject
+-- Replaces message id's with the actual Email subject using an overlay / extmark.
 
 function M.replaceMessageId()
   local idlines = M._findMessageIDs()
   for _, idl in pairs (idlines) do
     local len = math.max(0, idl.to-idl.from+1)
     local fillStr = string.format('%'..len..'s', '')
+    local tstamp = idl.msg[1].timestamp
+    local dt = os.date("%Y-%m-%d %H:%M", tonumber(tstamp))
+    -- local dt = idl.msg[1].date_relative
     local opts = {
-      virt_text = { { idl.msg[1].date_relative..'  ', 'EmailDate' },
+      virt_text = { { dt..'  ', 'EmailDate' },
                     { idl.msg[1].subject, 'EmailSubject' },
                     { '  '..idl.msg[1].authors, 'EmailAuthors' },
                     { fillStr, 'String' },
@@ -169,12 +185,11 @@ function M.replaceMessageId()
       virt_text_hide = true,  -- original text will show up when, say, using visual mode
     }
     -- https://jdhao.github.io/2021/09/09/nvim_use_virtual_text/
-    --
-    -- TODO store extmark, to allow to toggle them on or off! (Or just delete all of them in the
-    -- namespace and recreate if necessary.
     vim.api.nvim_buf_set_extmark(0, M.ns, idl.row-1, idl.from-1, opts)
   end
 end
+
+-- Clears the namespace which will show the original texts, which we want to overlay.
 
 function M.clear()
   vim.api.nvim_buf_clear_namespace(0, M.ns, 0, -1)
